@@ -1,6 +1,7 @@
 import { Volunteer, ApiResponse, PaginatedData } from '../types';
 import pool from '../db/pool';
 import { messages } from '../constants/messages';
+import { calculateNoShowPenalty } from './pointsCalculator';
 
 export const createVolunteer = async (
   name: string,
@@ -181,10 +182,41 @@ export const getVolunteerPointsLogs = async (
       [volunteerId, pageSize, offset]
     );
 
+    // 待审核记录尚未入账，单独列出预估积分，方便志愿者区分生效与待审核
+    const pendingResult = await client.query(
+      `SELECT
+        id,
+        service_type,
+        duration_hours,
+        rating,
+        is_no_show,
+        points_earned,
+        status,
+        created_at,
+        recorded_at,
+        CASE WHEN is_no_show = true THEN $2 ELSE points_earned END as estimated_change
+       FROM service_records
+       WHERE volunteer_id = $1 AND status = 'pending'
+       ORDER BY created_at ASC`,
+      [volunteerId, -calculateNoShowPenalty()]
+    );
+
+    const pendingRecords = pendingResult.rows.map(row => ({
+      ...row,
+      effective: false,
+      note: '待审核，积分暂未生效',
+    }));
+    const pendingPointsTotal = pendingRecords
+      .filter((r: any) => !r.is_no_show)
+      .reduce((sum: number, r: any) => sum + (r.points_earned || 0), 0);
+
     return {
       success: true,
       data: {
-        logs: result.rows,
+        logs: result.rows.map(row => ({ ...row, effective: true })),
+        pending_records: pendingRecords,
+        pending_count: pendingRecords.length,
+        pending_points_total: pendingPointsTotal,
         pagination: {
           page,
           page_size: pageSize,
@@ -262,10 +294,12 @@ export const getVolunteerSummary = async (
 
     const statsResult = await client.query(
       `SELECT
-        COUNT(*) as total_services,
-        COALESCE(SUM(CASE WHEN is_no_show = false THEN duration_hours ELSE 0 END), 0) as total_hours,
-        COALESCE(AVG(CASE WHEN rating > 0 THEN rating END), 0) as avg_rating,
-        COALESCE(SUM(CASE WHEN is_no_show = true THEN 1 ELSE 0 END), 0) as no_show_count
+        COUNT(*) FILTER (WHERE status = 'approved') as total_services,
+        COALESCE(SUM(CASE WHEN is_no_show = false AND status = 'approved' THEN duration_hours ELSE 0 END), 0) as total_hours,
+        COALESCE(AVG(CASE WHEN rating > 0 AND status = 'approved' THEN rating END), 0) as avg_rating,
+        COALESCE(SUM(CASE WHEN is_no_show = true AND status = 'approved' THEN 1 ELSE 0 END), 0) as no_show_count,
+        COUNT(*) FILTER (WHERE status = 'pending') as pending_services,
+        COALESCE(SUM(CASE WHEN status = 'pending' AND is_no_show = false THEN points_earned ELSE 0 END), 0) as pending_points
        FROM service_records WHERE volunteer_id = $1`,
       [volunteerId]
     );

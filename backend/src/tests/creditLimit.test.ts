@@ -1,7 +1,8 @@
 import dotenv from 'dotenv';
+import { startTestDatabase } from './testDb';
 import pool from '../db/pool';
 import { createTables } from '../db/migrate';
-import { createServiceRecord } from '../services/volunteerService';
+import { createServiceRecord, reviewServiceRecord } from '../services/volunteerService';
 import { createVolunteer, getVolunteerById } from '../services/volunteerManager';
 import { adjustCreditScore } from '../services/adminService';
 import { isCreditLimited, CREDIT_LIMIT_THRESHOLD } from '../services/creditService';
@@ -42,6 +43,7 @@ const runTests = async (): Promise<void> => {
 
   try {
     console.log('初始化数据库...');
+    await startTestDatabase();
     await createTables();
 
     console.log('\n--- 前置条件: 创建志愿者 ---');
@@ -124,8 +126,18 @@ const runTests = async (): Promise<void> => {
       is_no_show: false,
       description: '正常信用测试用例',
     });
-    assert('正常信用可创建服务记录', normalRecordResult.success === true, '正常信用应能创建记录', normalRecordResult);
-    assert('服务积分正确计算', (normalRecordResult.data?.pointsChange ?? 0) > 0, '积分应大于0', normalRecordResult.data);
+    assert('正常信用可创建服务记录(待审核)', normalRecordResult.success === true, '正常信用应能创建记录', normalRecordResult);
+    assert('新记录状态为待审核', normalRecordResult.data?.status === 'pending', '应为pending', normalRecordResult.data);
+    assert('待审核期间预估积分大于0', (normalRecordResult.data?.estimatedPoints ?? 0) > 0, '预估积分应大于0', normalRecordResult.data);
+
+    const normalReviewResult = await reviewServiceRecord(
+      normalRecordResult.data!.record.id!,
+      'approve',
+      'test-admin',
+      '测试用例: 审核通过正常服务记录'
+    );
+    assert('管理员审核通过后积分入账', normalReviewResult.success === true && (normalReviewResult.data?.pointsChange ?? 0) > 0,
+      '审核通过后积分应大于0', normalReviewResult.data);
 
     console.log('\n========================================');
     console.log('  测试结果汇总');

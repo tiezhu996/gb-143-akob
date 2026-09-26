@@ -1,12 +1,22 @@
 import dotenv from 'dotenv';
+import { startTestDatabase } from './testDb';
 import pool from '../db/pool';
 import { createTables } from '../db/migrate';
-import { createServiceRecord } from '../services/volunteerService';
+import { createServiceRecord, reviewServiceRecord } from '../services/volunteerService';
 import { createVolunteer, getVolunteerById, getVolunteerSummary } from '../services/volunteerManager';
 import { createComplaint, handleComplaint } from '../services/complaintService';
 import { recalculateCreditScore, CREDIT_LIMIT_THRESHOLD } from '../services/creditService';
 
 dotenv.config();
+
+// 提交服务记录并由管理员审核通过，模拟两步入账的完整流程
+const submitAndApprove = async (record: Parameters<typeof createServiceRecord>[0]) => {
+  const created = await createServiceRecord(record);
+  if (!created.success || !created.data) {
+    return created;
+  }
+  return reviewServiceRecord(created.data.record.id!, 'approve', 'test-admin', '测试用例: 审核通过');
+};
 
 interface TestResult {
   name: string;
@@ -42,6 +52,7 @@ const runTests = async (): Promise<void> => {
 
   try {
     console.log('初始化数据库...');
+    await startTestDatabase();
     await createTables();
 
     console.log('\n--- 前置条件: 创建测试志愿者 ---');
@@ -64,7 +75,7 @@ const runTests = async (): Promise<void> => {
     console.log('========================================');
 
     console.log('\n--- 用例1.1: 完成服务后服务次数增加 ---');
-    const service1 = await createServiceRecord({
+    const service1 = await submitAndApprove({
       volunteer_id: volunteerId,
       service_type: 'community_service',
       duration_hours: 2,
@@ -84,7 +95,7 @@ const runTests = async (): Promise<void> => {
 
     console.log('\n--- 用例1.3: 继续增加服务次数验证上限 ---');
     for (let i = 0; i < 45; i++) {
-      await createServiceRecord({
+      await submitAndApprove({
         volunteer_id: volunteerId,
         service_type: 'community_service',
         duration_hours: 1,
@@ -102,7 +113,7 @@ const runTests = async (): Promise<void> => {
     console.log('========================================');
 
     console.log('\n--- 用例2.1: 高评分服务增加信用分 ---');
-    const highRatingService = await createServiceRecord({
+    const highRatingService = await submitAndApprove({
       volunteer_id: volunteerId,
       service_type: 'medical_assist',
       duration_hours: 3,
@@ -119,19 +130,29 @@ const runTests = async (): Promise<void> => {
       '应返回信用分计算分解', highRatingService.data?.creditBreakdown);
 
     console.log('\n--- 用例2.2: 低评分服务降低信用分 ---');
-    const lowRatingService = await createServiceRecord({
-      volunteer_id: volunteerId,
-      service_type: 'community_service',
-      duration_hours: 2,
-      rating: 1,
-      description: '信用分测试-低评分',
-    });
-    assert('低评分服务创建成功', lowRatingService.success === true, '低评分服务创建失败', lowRatingService);
+    // 用独立志愿者，避免场景1累积的46条中性评分把单次低分的边际影响四舍五入掉
+    const lowRatingVolunteerResult = await createVolunteer('信用分测试-低评分', '13900000005', 'lowrating-test@example.com');
+    const lowRatingVolunteerId = lowRatingVolunteerResult.data?.id;
 
-    const lowRatingCredit = lowRatingService.data?.creditScore;
-    const lowRatingChange = lowRatingService.data?.creditChange ?? 0;
-    assert('低评分服务信用分降低', lowRatingChange < 0,
-      `低评分应降低信用分，变化量: ${lowRatingChange}`, { credit_change: lowRatingChange });
+    if (lowRatingVolunteerId) {
+      const lowRatingService = await submitAndApprove({
+        volunteer_id: lowRatingVolunteerId,
+        service_type: 'community_service',
+        duration_hours: 2,
+        rating: 1,
+        description: '信用分测试-低评分',
+      });
+      assert('低评分服务创建成功', lowRatingService.success === true, '低评分服务创建失败', lowRatingService);
+
+      const lowRatingChange = lowRatingService.data?.creditChange ?? 0;
+      assert('低评分服务信用分降低', lowRatingChange < 0,
+        `低评分应降低信用分，变化量: ${lowRatingChange}`, { credit_change: lowRatingChange });
+
+      const lowVolunteer = await getVolunteerById(lowRatingVolunteerId);
+      const lowCreditScore = lowVolunteer.data?.credit_score ?? 100;
+      assert('低评分后信用分低于100', lowCreditScore < 100,
+        `期望<100分，实际${lowCreditScore}分`, lowVolunteer.data);
+    }
 
     console.log('\n========================================');
     console.log('  场景3: 爽约影响信用分');
@@ -142,7 +163,7 @@ const runTests = async (): Promise<void> => {
 
     if (noShowVolunteerId) {
       console.log('\n--- 用例3.1: 爽约服务信用分降低 ---');
-      const noShowService = await createServiceRecord({
+      const noShowService = await submitAndApprove({
         volunteer_id: noShowVolunteerId,
         service_type: 'community_service',
         duration_hours: 2,

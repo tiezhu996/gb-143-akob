@@ -54,7 +54,7 @@ export const adjustPoints = async (
         'SELECT * FROM badges WHERE volunteer_id = $1',
         [volunteerId]
       );
-      newBadges = await checkNewBadges(volunteerId, newLevel, currentBadges.rows);
+      newBadges = await checkNewBadges(volunteerId, newLevel, currentBadges.rows, client);
       levelUp = true;
     }
 

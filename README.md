@@ -24,8 +24,19 @@ docker compose down -v --remove-orphans
 ## 主要功能
 
 - 志愿者档案与服务记录
+- 服务记录两步入账：单条录入和批量导入先进入待审核，审核通过后才结算
 - 积分、徽章和信用分计算
 - 投诉处理、后台调整和排行榜
+
+### 服务记录审核流程
+
+1. 志愿者通过 `POST /api/v1/service-records`（单条）或 `POST /api/v1/service-records/batch`（批量）提交记录，记录一律进入 `pending`（待审核）状态。待审核期间**积分、等级、徽章、信用分、服务次数均不变动**，接口会返回按现有规则算出的预估积分供参考。
+2. 管理员通过 `GET /api/v1/service-records/review/queue?volunteer_id=...` 按志愿者和提交时间翻看队列（同一志愿者的记录排在一起，组内按提交时间从早到晚）。
+3. 管理员通过 `POST /api/v1/service-records/:id/review` 审核：
+   - `{"action":"approve"}`：确认后按现有规则一次性算清积分、服务次数、等级、徽章和信用分，并写积分流水。
+   - `{"action":"reject","reason":"驳回原因"}`：驳回必须填写至少 5 个字符的原因，驳回记录留档（审核人、原因、时间），不动任何账户数据。
+4. 同一条记录只认第一次审核结果：重复审核返回 `400` 且带 `details.already_reviewed=true`，不会重复加分；并发审核由数据库行锁保证只入账一次。
+5. 志愿者在 `GET /api/v1/volunteers/:id/points-logs` 查看积分明细时，`logs` 是已生效流水（`effective:true`），`pending_records` 是待审核记录及预估积分（`effective:false`）。服务记录列表支持 `?status=pending|approved|rejected` 按状态筛选。
 
 ## 本地开发
 

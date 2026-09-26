@@ -7,3 +7,6 @@ dist
 coverage
 .vscode
 .idea
+
+# 本地集成测试内嵌PostgreSQL数据目录
+.embedded-postgres

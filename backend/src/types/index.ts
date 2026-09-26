@@ -42,6 +42,8 @@ export const BADGE_DESCRIPTIONS: Record<number, string> = {
   5: '卓越志愿者，公益楷模',
 };
 
+export type ServiceRecordStatus = 'pending' | 'approved' | 'rejected';
+
 export interface ServiceRecord {
   id?: string;
   volunteer_id: string;
@@ -52,6 +54,10 @@ export interface ServiceRecord {
   is_no_show?: boolean;
   location?: string;
   description?: string;
+  status?: ServiceRecordStatus;
+  reviewed_by?: string;
+  review_reason?: string;
+  reviewed_at?: Date;
   recorded_at?: Date;
   created_at?: Date;
   updated_at?: Date;
@@ -152,6 +158,21 @@ export interface ServiceRecordWithCredit extends ServiceRecord {
 }
 
 export interface CreateServiceRecordResult {
+  record: ServiceRecord;
+  status: ServiceRecordStatus;
+  pointsChange: number;
+  estimatedPoints: number;
+  estimatedChange: number;
+  newTotalPoints: number;
+  newLevel: number;
+  newBadges: any[];
+  levelUp: boolean;
+  creditScore: number;
+  creditChange: number;
+  creditBreakdown?: CreditCalculationBreakdown;
+}
+
+export interface ReviewServiceRecordResult {
   record: ServiceRecord;
   pointsChange: number;
   newTotalPoints: number;

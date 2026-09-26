@@ -57,6 +57,27 @@ export const batchServiceRecordsSchema = Joi.object({
   records: Joi.array().items(serviceRecordSchema).min(1).required(),
 });
 
+export const reviewServiceRecordSchema = Joi.object({
+  action: Joi.string().valid('approve', 'reject').required(),
+  reason: Joi.when('action', {
+    is: 'reject',
+    then: Joi.string().min(5).required(),
+    otherwise: Joi.string().optional(),
+  }),
+});
+
+export const reviewQueueQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).default(1),
+  page_size: Joi.number().integer().min(1).max(100).default(20),
+  volunteer_id: Joi.string().uuid().optional(),
+});
+
+export const serviceRecordsQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).default(1),
+  page_size: Joi.number().integer().min(1).max(100).default(20),
+  status: Joi.string().valid('pending', 'approved', 'rejected').optional(),
+});
+
 export const volunteerCreateSchema = Joi.object({
   name: Joi.string().min(2).max(100).required(),
   phone: Joi.string().pattern(/^1[3-9]\d{9}$/).optional(),

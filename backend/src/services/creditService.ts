@@ -49,7 +49,7 @@ export const recalculateCreditScore = async (
     const beforeScore = volunteer.credit_score;
 
     const servicesResult = await client.query(
-      'SELECT * FROM service_records WHERE volunteer_id = $1 ORDER BY recorded_at DESC LIMIT 50',
+      "SELECT * FROM service_records WHERE volunteer_id = $1 AND status = 'approved' ORDER BY recorded_at DESC LIMIT 50",
       [volunteerId]
     );
     const recentServices = servicesResult.rows as ServiceRecord[];
@@ -61,7 +61,7 @@ export const recalculateCreditScore = async (
     const recentComplaints = complaintsResult.rows as Complaint[];
 
     const noShowResult = await client.query(
-      'SELECT COUNT(*) as count FROM service_records WHERE volunteer_id = $1 AND is_no_show = true',
+      "SELECT COUNT(*) as count FROM service_records WHERE volunteer_id = $1 AND is_no_show = true AND status = 'approved'",
       [volunteerId]
     );
     const noShowCount = parseInt(noShowResult.rows[0].count);

@@ -141,14 +141,15 @@ export const getTrendData = async (
       )
       SELECT
         ds.date::text,
-        COALESCE(SUM(sr.points_earned), 0) as total_points,
+        COALESCE(SUM(sr.points_earned) FILTER (WHERE sr.is_no_show = false), 0) as total_points,
         COUNT(sr.id) FILTER (WHERE sr.is_no_show = false) as total_services,
         COALESCE(
           (SELECT AVG(v.credit_score) FROM volunteers v),
           0
         ) as average_credit
       FROM date_series ds
-      LEFT JOIN service_records sr ON sr.recorded_at::date = ds.date
+      LEFT JOIN service_records sr
+        ON sr.recorded_at::date = ds.date AND sr.status = 'approved'
       GROUP BY ds.date
       ORDER BY ds.date`,
       [startDate, endDate]
@@ -179,10 +180,11 @@ export const getStatsOverview = async (): Promise<ApiResponse<any>> => {
 
     const serviceStats = await client.query(
       `SELECT
-        COUNT(*) as total_services,
-        COALESCE(SUM(duration_hours) FILTER (WHERE is_no_show = false), 0) as total_hours,
-        COALESCE(AVG(rating) FILTER (WHERE rating > 0), 0) as avg_rating,
-        COUNT(*) FILTER (WHERE is_no_show = true) as total_no_shows
+        COUNT(*) FILTER (WHERE status = 'approved') as total_services,
+        COUNT(*) FILTER (WHERE status = 'pending') as pending_services,
+        COALESCE(SUM(duration_hours) FILTER (WHERE is_no_show = false AND status = 'approved'), 0) as total_hours,
+        COALESCE(AVG(rating) FILTER (WHERE rating > 0 AND status = 'approved'), 0) as avg_rating,
+        COUNT(*) FILTER (WHERE is_no_show = true AND status = 'approved') as total_no_shows
        FROM service_records`
     );
 

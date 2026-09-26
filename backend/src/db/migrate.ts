@@ -40,6 +40,10 @@ const createTables = async (): Promise<void> => {
         is_no_show BOOLEAN NOT NULL DEFAULT false,
         location VARCHAR(200),
         description TEXT,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        reviewed_by VARCHAR(100),
+        review_reason TEXT,
+        reviewed_at TIMESTAMP,
         recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -48,6 +52,22 @@ const createTables = async (): Promise<void> => {
       CREATE INDEX IF NOT EXISTS idx_service_records_volunteer_id ON service_records(volunteer_id);
       CREATE INDEX IF NOT EXISTS idx_service_records_recorded_at ON service_records(recorded_at DESC);
       CREATE INDEX IF NOT EXISTS idx_service_records_service_type ON service_records(service_type);
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'service_records_status_check'
+        ) THEN
+          ALTER TABLE service_records
+            ADD CONSTRAINT service_records_status_check
+            CHECK (status IN ('pending', 'approved', 'rejected'));
+        END IF;
+      END $$;
+
+      CREATE INDEX IF NOT EXISTS idx_service_records_status ON service_records(status);
+      CREATE INDEX IF NOT EXISTS idx_service_records_review_queue
+        ON service_records(volunteer_id, created_at DESC)
+        WHERE status = 'pending';
     `);
 
     await client.query(`

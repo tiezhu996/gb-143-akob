@@ -43,6 +43,18 @@ export const messages = {
     serviceRecordDeleted: '记录已删除',
     serviceRecordDeleteFailed: '删除记录失败',
   },
+  review: {
+    submittedPending: '记录已提交，等待管理员审核，审核通过后积分才会生效',
+    approved: '记录已审核通过，积分已入账',
+    rejected: '记录已驳回，未计入积分',
+    reasonRequired: '驳回时必须填写原因',
+    reasonTooShort: '驳回原因至少5个字符',
+    reviewFailed: '审核失败',
+    defaultApproveReason: '审核通过',
+    defaultRejectReason: '内容不实，退回重录',
+    alreadyReviewed: (status: string) =>
+      `该记录已${status === 'approved' ? '审核通过' : '驳回'}，不能重复审核`,
+  },
   complaints: {
     notFound: '投诉不存在',
     alreadyHandled: '该投诉已处理',
@@ -59,6 +71,7 @@ export const messages = {
   logs: {
     createServiceRecordFailed: '创建服务记录失败',
     deleteServiceRecordFailed: '删除服务记录失败',
+    reviewServiceRecordFailed: '审核服务记录失败',
     handleComplaintFailed: '处理投诉失败',
     adjustPointsFailed: '调整积分失败',
     adjustCreditFailed: '调整信用分失败',
