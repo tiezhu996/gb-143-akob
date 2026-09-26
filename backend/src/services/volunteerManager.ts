@@ -1,5 +1,6 @@
 import { Volunteer, ApiResponse, PaginatedData } from '../types';
 import pool from '../db/pool';
+import { calculateNoShowPenalty } from './pointsCalculator';
 import { messages } from '../constants/messages';
 
 export const createVolunteer = async (
@@ -181,10 +182,30 @@ export const getVolunteerPointsLogs = async (
       [volunteerId, pageSize, offset]
     );
 
+    // 待审核记录尚未入账，单独列出预计变动，便于志愿者区分已生效与待审核
+    const pendingResult = await client.query(
+      `SELECT id as record_id, service_type, points_earned, is_no_show, recorded_at, created_at
+       FROM service_records
+       WHERE volunteer_id = $1 AND status = 'pending'
+       ORDER BY created_at DESC`,
+      [volunteerId]
+    );
+
+    const pendingEntries = pendingResult.rows.map((row) => ({
+      record_id: row.record_id,
+      entry_status: 'pending',
+      change_amount: row.is_no_show ? -calculateNoShowPenalty() : row.points_earned,
+      reason: row.is_no_show ? '爽约扣分（待审核）' : `服务积分: ${row.service_type}（待审核）`,
+      recorded_at: row.recorded_at,
+      created_at: row.created_at,
+    }));
+
     return {
       success: true,
       data: {
-        logs: result.rows,
+        logs: result.rows.map((row) => ({ ...row, entry_status: 'effective' })),
+        pending: pendingEntries,
+        pending_count: pendingEntries.length,
         pagination: {
           page,
           page_size: pageSize,
@@ -266,7 +287,7 @@ export const getVolunteerSummary = async (
         COALESCE(SUM(CASE WHEN is_no_show = false THEN duration_hours ELSE 0 END), 0) as total_hours,
         COALESCE(AVG(CASE WHEN rating > 0 THEN rating END), 0) as avg_rating,
         COALESCE(SUM(CASE WHEN is_no_show = true THEN 1 ELSE 0 END), 0) as no_show_count
-       FROM service_records WHERE volunteer_id = $1`,
+       FROM service_records WHERE volunteer_id = $1 AND status = 'approved'`,
       [volunteerId]
     );
 

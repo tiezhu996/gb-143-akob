@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { validateRequest, validateQuery, serviceRecordSchema, batchServiceRecordsSchema, paginationSchema } from '../middleware/validator';
+import { validateRequest, validateQuery, serviceRecordSchema, batchServiceRecordsSchema, serviceRecordListQuerySchema } from '../middleware/validator';
 import { AuthRequest } from '../middleware/auth';
 import {
   createServiceRecord,
@@ -41,11 +41,12 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
-router.get('/volunteer/:volunteerId', validateQuery(paginationSchema), async (req: Request, res: Response) => {
+router.get('/volunteer/:volunteerId', validateQuery(serviceRecordListQuerySchema), async (req: Request, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const pageSize = parseInt(req.query.page_size as string) || 20;
-    const result = await getVolunteerServiceRecords(req.params.volunteerId, page, pageSize);
+    const status = req.query.status as string | undefined;
+    const result = await getVolunteerServiceRecords(req.params.volunteerId, page, pageSize, status);
     res.status(200).json(result);
   } catch (error) {
     sendInternalError(res, error, 'Error getting volunteer service records');

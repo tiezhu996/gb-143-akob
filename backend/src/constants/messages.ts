@@ -50,6 +50,15 @@ export const messages = {
     resolved: '投诉已处理',
     handleFailed: '处理投诉失败',
   },
+  reviews: {
+    submittedPending: '服务记录已提交，待管理员审核通过后入账',
+    recordNotFound: '服务记录不存在',
+    alreadyReviewed: '该记录已审核，以首次审核结果为准',
+    reasonRequired: '驳回必须填写驳回原因',
+    approved: '审核通过，积分已入账',
+    rejected: '服务记录已驳回',
+    reviewFailed: '审核服务记录失败',
+  },
   admin: {
     adjustPointsFailed: '调整积分失败',
     adjustCreditFailed: '调整信用分失败',
@@ -59,6 +68,7 @@ export const messages = {
   logs: {
     createServiceRecordFailed: '创建服务记录失败',
     deleteServiceRecordFailed: '删除服务记录失败',
+    reviewServiceRecordFailed: '审核服务记录失败',
     handleComplaintFailed: '处理投诉失败',
     adjustPointsFailed: '调整积分失败',
     adjustCreditFailed: '调整信用分失败',

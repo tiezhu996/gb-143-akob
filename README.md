@@ -24,8 +24,16 @@ docker compose down -v --remove-orphans
 ## 主要功能
 
 - 志愿者档案与服务记录
+- 服务记录两步入账：单条录入和批量导入先进入待审核，管理员审核通过后积分、等级、徽章、信用分和服务次数一次算清；驳回需填写原因并留档，重复审核只认首次结果
 - 积分、徽章和信用分计算
 - 投诉处理、后台调整和排行榜
+- 积分明细区分已生效与待审核条目
+
+### 审核相关接口
+
+- `GET /api/v1/admin/service-record-reviews` — 审核队列，支持 `status`（pending/approved/rejected/all）、`volunteer_id`、`submitted_from`、`submitted_to`、`order` 过滤
+- `POST /api/v1/admin/service-records/:id/review` — 审核服务记录，body 为 `{ "action": "approve" | "reject", "reason": "驳回时必填" }`
+- `GET /api/v1/admin/service-records/:id/reviews` — 单条记录的审核留档（含重复审核尝试）
 
 ## 本地开发
 

@@ -32,8 +32,8 @@ export const apiEndpoints = [
   'GET  /api/v1/volunteers/:id/badges - 徽章列表',
   'GET  /api/v1/volunteers/:id/points-logs - 积分明细',
   'GET  /api/v1/volunteers/:id/credit-logs - 信用明细',
-  'POST /api/v1/service-records - 创建服务记录',
-  'POST /api/v1/service-records/batch - 批量导入',
+  'POST /api/v1/service-records - 创建服务记录（提交后进入待审核）',
+  'POST /api/v1/service-records/batch - 批量导入（提交后进入待审核）',
   'GET  /api/v1/ranking/points - 积分排行榜',
   'GET  /api/v1/ranking/credit - 信用排行榜',
   'GET  /api/v1/ranking/trend - 趋势数据',
@@ -41,4 +41,7 @@ export const apiEndpoints = [
   'POST /api/v1/complaints/:id/handle - 处理投诉',
   'POST /api/v1/admin/adjust-points - 调整积分',
   'POST /api/v1/admin/adjust-credit - 调整信用分',
+  'GET  /api/v1/admin/service-record-reviews - 服务记录审核队列',
+  'POST /api/v1/admin/service-records/:id/review - 审核服务记录（通过/驳回）',
+  'GET  /api/v1/admin/service-records/:id/reviews - 服务记录审核留档',
 ];

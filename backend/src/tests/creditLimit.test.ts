@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import pool from '../db/pool';
 import { createTables } from '../db/migrate';
 import { createServiceRecord } from '../services/volunteerService';
+import { reviewServiceRecord } from '../services/reviewService';
 import { createVolunteer, getVolunteerById } from '../services/volunteerManager';
 import { adjustCreditScore } from '../services/adminService';
 import { isCreditLimited, CREDIT_LIMIT_THRESHOLD } from '../services/creditService';
@@ -105,7 +106,7 @@ const runTests = async (): Promise<void> => {
     assert('服务次数未增加', volunteerAfterAttempt.data?.service_count === 0,
       `期望服务次数0，实际${volunteerAfterAttempt.data?.service_count}`, volunteerAfterAttempt.data);
 
-    console.log('\n--- 用例5: 恢复信用分后可正常创建记录 ---');
+    console.log('\n--- 用例5: 恢复信用分后可正常提交记录，审核通过后入账 ---');
     const creditRestoreResult = await adjustCreditScore(
       volunteerId,
       80,
@@ -124,8 +125,21 @@ const runTests = async (): Promise<void> => {
       is_no_show: false,
       description: '正常信用测试用例',
     });
-    assert('正常信用可创建服务记录', normalRecordResult.success === true, '正常信用应能创建记录', normalRecordResult);
-    assert('服务积分正确计算', (normalRecordResult.data?.pointsChange ?? 0) > 0, '积分应大于0', normalRecordResult.data);
+    assert('正常信用可提交服务记录', normalRecordResult.success === true, '正常信用应能提交记录', normalRecordResult);
+    assert('记录进入待审核状态', normalRecordResult.data?.status === 'pending',
+      `期望pending，实际${normalRecordResult.data?.status}`, normalRecordResult.data);
+    assert('预计积分正确计算', (normalRecordResult.data?.estimatedPoints ?? 0) > 0, '预计积分应大于0', normalRecordResult.data);
+
+    const pendingVolunteer = await getVolunteerById(volunteerId);
+    assert('待审核期间积分未入账', pendingVolunteer.data?.total_points === 0,
+      `期望积分0，实际${pendingVolunteer.data?.total_points}`, pendingVolunteer.data);
+
+    const recordId = normalRecordResult.data?.record?.id;
+    const reviewResult = recordId
+      ? await reviewServiceRecord(recordId, 'approve', 'test-admin')
+      : { success: false } as any;
+    assert('审核通过成功', reviewResult.success === true, '审核应成功', reviewResult);
+    assert('审核后积分入账', (reviewResult.data?.pointsChange ?? 0) > 0, '入账积分应大于0', reviewResult.data);
 
     console.log('\n========================================');
     console.log('  测试结果汇总');

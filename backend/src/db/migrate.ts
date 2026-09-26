@@ -40,6 +40,10 @@ const createTables = async (): Promise<void> => {
         is_no_show BOOLEAN NOT NULL DEFAULT false,
         location VARCHAR(200),
         description TEXT,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        reviewed_by VARCHAR(100),
+        reviewed_at TIMESTAMP,
+        review_note TEXT,
         recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -48,6 +52,42 @@ const createTables = async (): Promise<void> => {
       CREATE INDEX IF NOT EXISTS idx_service_records_volunteer_id ON service_records(volunteer_id);
       CREATE INDEX IF NOT EXISTS idx_service_records_recorded_at ON service_records(recorded_at DESC);
       CREATE INDEX IF NOT EXISTS idx_service_records_service_type ON service_records(service_type);
+      CREATE INDEX IF NOT EXISTS idx_service_records_status ON service_records(status);
+      CREATE INDEX IF NOT EXISTS idx_service_records_review_queue ON service_records(status, volunteer_id, created_at);
+    `);
+
+    // 兼容已有部署：补充审核字段；历史记录积分已入账，回填为 approved
+    await client.query(`
+      ALTER TABLE service_records ADD COLUMN IF NOT EXISTS status VARCHAR(20);
+      ALTER TABLE service_records ADD COLUMN IF NOT EXISTS reviewed_by VARCHAR(100);
+      ALTER TABLE service_records ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
+      ALTER TABLE service_records ADD COLUMN IF NOT EXISTS review_note TEXT;
+      UPDATE service_records SET status = 'approved' WHERE status IS NULL;
+      ALTER TABLE service_records ALTER COLUMN status SET DEFAULT 'pending';
+      ALTER TABLE service_records ALTER COLUMN status SET NOT NULL;
+      ALTER TABLE service_records DROP CONSTRAINT IF EXISTS service_records_status_check;
+      ALTER TABLE service_records ADD CONSTRAINT service_records_status_check
+        CHECK (status IN ('pending', 'approved', 'rejected'));
+      CREATE INDEX IF NOT EXISTS idx_service_records_status ON service_records(status);
+      CREATE INDEX IF NOT EXISTS idx_service_records_review_queue ON service_records(status, volunteer_id, created_at);
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS service_record_reviews (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        record_id UUID NOT NULL REFERENCES service_records(id) ON DELETE CASCADE,
+        volunteer_id UUID NOT NULL REFERENCES volunteers(id) ON DELETE CASCADE,
+        action VARCHAR(20) NOT NULL CHECK (action IN ('approve', 'reject')),
+        reason TEXT,
+        points_change INTEGER NOT NULL DEFAULT 0,
+        is_effective BOOLEAN NOT NULL DEFAULT true,
+        reviewed_by VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_service_record_reviews_record_id ON service_record_reviews(record_id);
+      CREATE INDEX IF NOT EXISTS idx_service_record_reviews_volunteer_id ON service_record_reviews(volunteer_id);
+      CREATE INDEX IF NOT EXISTS idx_service_record_reviews_created_at ON service_record_reviews(created_at DESC);
     `);
 
     await client.query(`

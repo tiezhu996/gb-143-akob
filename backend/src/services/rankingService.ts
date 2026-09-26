@@ -148,7 +148,7 @@ export const getTrendData = async (
           0
         ) as average_credit
       FROM date_series ds
-      LEFT JOIN service_records sr ON sr.recorded_at::date = ds.date
+      LEFT JOIN service_records sr ON sr.recorded_at::date = ds.date AND sr.status = 'approved'
       GROUP BY ds.date
       ORDER BY ds.date`,
       [startDate, endDate]
@@ -183,7 +183,8 @@ export const getStatsOverview = async (): Promise<ApiResponse<any>> => {
         COALESCE(SUM(duration_hours) FILTER (WHERE is_no_show = false), 0) as total_hours,
         COALESCE(AVG(rating) FILTER (WHERE rating > 0), 0) as avg_rating,
         COUNT(*) FILTER (WHERE is_no_show = true) as total_no_shows
-       FROM service_records`
+       FROM service_records
+       WHERE status = 'approved'`
     );
 
     const complaintStats = await client.query(
